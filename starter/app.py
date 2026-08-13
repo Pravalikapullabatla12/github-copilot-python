@@ -15,11 +15,19 @@ def index():
 
 @app.route('/new')
 def new_game():
-    clues = int(request.args.get('clues', 35))
+    clues = request.args.get('clues', 35)
+    try:
+        clues = int(clues)
+    except (TypeError, ValueError):
+        clues = 35
+    if clues < 17:
+        clues = 17
+    if clues > 81:
+        clues = 81
     puzzle, solution = sudoku_logic.generate_puzzle(clues)
     CURRENT['puzzle'] = puzzle
     CURRENT['solution'] = solution
-    return jsonify({'puzzle': puzzle})
+    return jsonify({'puzzle': puzzle, 'solution': solution})
 
 @app.route('/check', methods=['POST'])
 def check_solution():
@@ -28,12 +36,32 @@ def check_solution():
     solution = CURRENT.get('solution')
     if solution is None:
         return jsonify({'error': 'No game in progress'}), 400
+
+    if board is None or len(board) != sudoku_logic.SIZE:
+        return jsonify({'status': 'invalid', 'message': 'Board is invalid.'}), 400
+
+    for i in range(sudoku_logic.SIZE):
+        if len(board[i]) != sudoku_logic.SIZE:
+            return jsonify({'status': 'invalid', 'message': 'Board is invalid.'}), 400
+
+    has_empty = False
     incorrect = []
     for i in range(sudoku_logic.SIZE):
         for j in range(sudoku_logic.SIZE):
-            if board[i][j] != solution[i][j]:
+            value = board[i][j]
+            if value == 0:
+                has_empty = True
+                continue
+            if value != solution[i][j]:
                 incorrect.append([i, j])
-    return jsonify({'incorrect': incorrect})
+
+    if has_empty:
+        return jsonify({'status': 'incomplete', 'message': 'Puzzle is not complete yet.'})
+
+    if incorrect:
+        return jsonify({'status': 'incorrect', 'message': 'There are incorrect entries.'})
+
+    return jsonify({'status': 'solved', 'message': 'Congratulations! You solved the Sudoku!'})
 
 if __name__ == '__main__':
     app.run(debug=True)

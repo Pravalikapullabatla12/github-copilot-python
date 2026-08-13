@@ -6,12 +6,54 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <h1>Sudoku Game</h1>
-  <div id="sudoku-board"></div>
-  <div class="controls">
-    <button id="new-game">New Game</button>
-    <button id="check-solution">Check Solution</button>
-    <span id="message"></span>
+  <div class="page-shell">
+    <aside class="sidebar">
+      <div class="difficulty-panel">
+        <h2>Difficulty</h2>
+        <label for="difficulty">Select level</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+    </aside>
+
+    <main class="game-panel">
+      <h1>Sudoku Game</h1>
+      <div class="top-bar">
+        <div class="timer-wrap" aria-live="polite">
+          <span class="timer-label">Time</span>
+          <span id="timer">00:00</span>
+        </div>
+        <button id="theme-toggle" type="button" aria-label="Toggle light and dark mode">Light mode</button>
+      </div>
+      <div id="sudoku-board"></div>
+      <div class="controls">
+        <button id="new-game">New Game</button>
+        <button id="check-solution">Check Solution</button>
+        <button id="hint-button" type="button">Hint</button>
+        <span id="message"></span>
+      </div>
+
+      <section class="leaderboard-panel" aria-live="polite">
+        <h2>Top 10 Leaderboard</h2>
+        <div class="leaderboard-table-wrap">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Time</th>
+                <th>Difficulty</th>
+                <th>Hints</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
   <script src="/static/main.js"></script>
 </body>
