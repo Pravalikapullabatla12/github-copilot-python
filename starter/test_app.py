@@ -161,27 +161,28 @@ class TestNewGameRoute:
         assert easy_filled > medium_filled > hard_filled
 
     def test_new_game_clues_below_minimum_clamped_to_17(self, client):
-        """Verify clue count below 17 is clamped to 17."""
+        """Verify clue count below 17 returns validation error."""
         response = client.get('/new?clues=5')
+        # Stricter validation: reject values outside 17-81 range
+        assert response.status_code == 400
         data = response.get_json()
-        filled = sum(1 for row in data['puzzle'] for cell in row if cell != 0)
-        # The app clamps to minimum 17, though some cells may not be removed if uniqueness fails
-        assert filled >= 17
+        assert 'error' in data
 
     def test_new_game_clues_above_maximum_clamped_to_81(self, client):
-        """Verify clue count above 81 is clamped to 81."""
+        """Verify clue count above 81 returns validation error."""
         response = client.get('/new?clues=100')
+        # Stricter validation: reject values outside 17-81 range
+        assert response.status_code == 400
         data = response.get_json()
-        filled = sum(1 for row in data['puzzle'] for cell in row if cell != 0)
-        # The app clamps to maximum 81
-        assert filled <= 81
+        assert 'error' in data
 
     def test_new_game_clues_invalid_string_defaults_to_35(self, client):
-        """Verify invalid clue parameter defaults to 35."""
+        """Verify invalid clue parameter returns validation error."""
         response = client.get('/new?clues=invalid')
+        # Stricter validation: reject invalid difficulty names
+        assert response.status_code == 400
         data = response.get_json()
-        filled = sum(1 for row in data['puzzle'] for cell in row if cell != 0)
-        assert filled == 35
+        assert 'error' in data
 
     def test_new_game_stores_puzzle_in_current_state(self, client):
         """Verify /new stores puzzle in CURRENT global state."""
@@ -453,3 +454,162 @@ class TestEdgeCases:
         assert puzzle1 != puzzle2 or puzzle1 == puzzle2  # Either way, both are valid 9x9 grids
         # Just verify both are valid
         assert len(puzzle1) == 9 and len(puzzle2) == 9
+
+
+class TestCheckSolutionIncorrectCells:
+    """Focused tests for incorrect cell detection and reporting."""
+
+    def test_incorrect_cell_returned_as_row_col_coordinates(self, client):
+        """Test that an incorrect cell is returned as [row, col]."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Create board with one incorrect cell at [3, 5]
+        test_board = [row[:] for row in sol]
+        original_value = test_board[3][5]
+        # Change to a different valid digit
+        test_board[3][5] = 1 if original_value != 1 else 2
+
+        response = client.post('/check', json={'board': test_board})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        assert data['status'] == 'incorrect'
+        assert 'incorrect' in data
+        assert isinstance(data['incorrect'], list)
+        assert len(data['incorrect']) > 0
+        assert [3, 5] in data['incorrect']
+
+    def test_multiple_incorrect_cells_all_returned(self, client):
+        """Test that multiple incorrect cells are all reported with their coordinates."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Create board with multiple incorrect cells
+        test_board = [row[:] for row in sol]
+        incorrect_coords = [[0, 0], [2, 2], [5, 7], [8, 8]]
+        
+        for row, col in incorrect_coords:
+            original = test_board[row][col]
+            test_board[row][col] = 1 if original != 1 else 2
+
+        response = client.post('/check', json={'board': test_board})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        assert data['status'] == 'incorrect'
+        assert 'incorrect' in data
+        
+        # All incorrect cells should be in the response
+        for coord in incorrect_coords:
+            assert coord in data['incorrect'], f"Coordinate {coord} not found in incorrect cells"
+
+    def test_incorrect_cells_detected_even_on_incomplete_board(self, client):
+        """Test that incorrect cells are detected even when the board is incomplete."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Create board with one incorrect cell AND one empty cell
+        test_board = [row[:] for row in sol]
+        test_board[0][0] = 1 if sol[0][0] != 1 else 2  # Incorrect
+        test_board[5][5] = 0  # Empty
+
+        response = client.post('/check', json={'board': test_board})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        # Should report 'incorrect' status, not 'incomplete'
+        assert data['status'] == 'incorrect'
+        assert 'incorrect' in data
+        assert [0, 0] in data['incorrect']
+        # Should NOT have 'incomplete' field when incorrect cells exist
+        assert 'incomplete' not in data or data.get('incomplete') != True
+
+    def test_incomplete_board_without_incorrect_cells_returns_incomplete(self, client):
+        """Test that incomplete board with no incorrect cells returns 'incomplete'."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Create board with empty cells but no incorrect cells
+        test_board = [row[:] for row in sol]
+        test_board[0][0] = 0  # Empty, but correct in place
+        test_board[2][3] = 0  # Another empty cell
+
+        response = client.post('/check', json={'board': test_board})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        # Should report 'incomplete' status
+        assert data['status'] == 'incomplete'
+        assert data.get('incomplete') == True
+        # Should NOT have 'incorrect' field
+        assert 'incorrect' not in data or len(data.get('incorrect', [])) == 0
+
+    def test_completely_correct_board_returns_solved(self, client):
+        """Test that a completely correct board returns 'solved' status."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Submit the complete correct solution
+        response = client.post('/check', json={'board': sol})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        assert data['status'] == 'solved'
+        assert 'Congratulations' in data['message']
+        # Should NOT have 'incorrect' or 'incomplete' fields
+        assert 'incorrect' not in data
+        assert 'incomplete' not in data
+
+    def test_completely_incorrect_board_returns_all_wrong_coordinates(self, client):
+        """Test that completely incorrect board returns all incorrect coordinates."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        # Create a board that's completely wrong
+        # Fill with values that conflict with the solution
+        test_board = [[0] * 9 for _ in range(9)]
+        for i in range(9):
+            for j in range(9):
+                # Set to something different from solution
+                test_board[i][j] = 1 if sol[i][j] != 1 else 2
+
+        response = client.post('/check', json={'board': test_board})
+        assert response.status_code == 200
+        data = response.get_json()
+        
+        assert data['status'] == 'incorrect'
+        assert 'incorrect' in data
+        # Should have many incorrect cells (likely all 81)
+        assert len(data['incorrect']) > 50
+
+    def test_incorrect_cells_format_is_list_of_arrays(self, client):
+        """Test that incorrect cells are formatted as list of [row, col] arrays."""
+        puz, sol = sudoku_logic.generate_puzzle(35)
+        CURRENT['puzzle'] = puz
+        CURRENT['solution'] = sol
+
+        test_board = [row[:] for row in sol]
+        test_board[1][2] = 1 if sol[1][2] != 1 else 2
+
+        response = client.post('/check', json={'board': test_board})
+        data = response.get_json()
+        
+        assert data['status'] == 'incorrect'
+        incorrect = data['incorrect']
+        assert isinstance(incorrect, list)
+        
+        # Each item should be a list of exactly 2 integers
+        for item in incorrect:
+            assert isinstance(item, list)
+            assert len(item) == 2
+            assert isinstance(item[0], int)
+            assert isinstance(item[1], int)
+            assert 0 <= item[0] < 9
+            assert 0 <= item[1] < 9

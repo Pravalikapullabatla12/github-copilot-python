@@ -19,6 +19,7 @@
     --success-color: #1f7a45;
     --warning-color: #b86d00;
     --invalid-bg: #ffd7d7;
+    --invalid-text: #7f1d1d;
     --input-bg: #ffffff;
     --control-bg: #ffffff;
 }
@@ -44,6 +45,7 @@ body.dark-theme {
     --success-color: #8dd4a0;
     --warning-color: #f6c56f;
     --invalid-bg: #5a2d2d;
+    --invalid-text: #ffb3b3;
     --input-bg: #18242f;
     --control-bg: #1d2a36;
 }
@@ -345,9 +347,12 @@ button:active {
 }
 
 .sudoku-cell.incorrect {
-    background: #f8d7da;
-    color: #7f1d1d;
-    border-color: #d32f2f;
+    background: var(--invalid-bg);
+    color: var(--invalid-text, #7f1d1d);
+    border-color: #d32f2f !important;
+    border-width: 2px !important;
+    box-shadow: inset 0 0 0 1px rgba(211, 47, 47, 0.4), 0 0 4px rgba(211, 47, 47, 0.3);
+    font-weight: 600;
 }
 
 .sudoku-cell.invalid {
@@ -373,6 +378,7 @@ button:active {
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     padding: 18px 14px 10px;
+    box-sizing: border-box;
     text-align: left;
 }
 
@@ -384,6 +390,7 @@ button:active {
 
 .leaderboard-table-wrap {
     overflow-x: auto;
+    box-sizing: border-box;
 }
 
 .leaderboard-table {
@@ -391,6 +398,7 @@ button:active {
     border-collapse: collapse;
     background: var(--panel-color);
     color: var(--text-color);
+    box-sizing: border-box;
 }
 
 .leaderboard-table th,
@@ -399,6 +407,7 @@ button:active {
     border-bottom: 1px solid var(--button-border);
     text-align: left;
     font-size: 0.96rem;
+    box-sizing: border-box;
 }
 
 .leaderboard-table th {

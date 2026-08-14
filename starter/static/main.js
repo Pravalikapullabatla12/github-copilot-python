@@ -419,12 +419,25 @@ async function checkSolution() {
   }
 
   if (data.status === 'incorrect') {
+    // Clear previous move validation
+    clearMoveValidation();
+    
     msg.style.color = '#d32f2f';
     msg.innerText = data.message;
-    for (let idx = 0; idx < inputs.length; idx++) {
-      const inp = inputs[idx];
-      if (inp.disabled) continue;
-      inp.className = 'sudoku-cell';
+    
+    // Highlight incorrect cells from backend response
+    if (Array.isArray(data.incorrect) && data.incorrect.length > 0) {
+      const incorrectSet = new Set();
+      data.incorrect.forEach(([row, col]) => {
+        incorrectSet.add(row * SIZE + col);
+      });
+      
+      for (let idx = 0; idx < inputs.length; idx++) {
+        const inp = inputs[idx];
+        if (incorrectSet.has(idx)) {
+          inp.className = 'sudoku-cell incorrect';
+        }
+      }
     }
     return;
   }
